@@ -1,6 +1,8 @@
 # GBX-REHexPlugin
 A REHex plugin for the .Gbx (GameBox) file format.  
 
+# WARNING! Currently only working on Linux, the Windows version of REHex uses a different version of Lua, which doesn't have bit32 library. What the f***!
+  
 # About
 This plugin will automaticall detect if a Gbx file was loaded and will offer to analyze it for you.  
   
