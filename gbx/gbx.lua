@@ -39,7 +39,7 @@ local folder_index_counter = 0  -- Folder used to give every folder an index tha
 
 -- Local functions
 
-local function analyse_user_data(doc)
+local function analyze_user_data(doc)
     -- Analysis of the user data portion of the file (only for versions >= 6)
 
     local user_data_pos = fic
@@ -67,12 +67,22 @@ local function analyse_user_data(doc)
         fic = fic + 4
         -- 4 bytes
         head_chunks[i] = utils.read_u32le(doc, fic)
-        -- Get bit 31 to check if chunk is skippable
-        local skip = bit32.extract(head_chunks[i], 31, 1)
+        local skip = false
         local com_csize = com_size
-        if skip == 1 then
+        -- Get bit 31 to check if chunk is skippable
+        if bit32 then
+            if bit32.extract(head_chunks[i], 31, 1) == 1 then skip = true end
+        else
+            rehex.print_info( tostring((head_chunks[i]) & (1<<(31))) .. '\n' )
+            skip = (head_chunks[i]) & (1<<(31)) == (1<<(31))
+        end
+        if skip then
             -- Is skippable, clearing bit 31 to get actual size
-            head_chunks[i] = bit32.replace(head_chunks[i], 0, 31, 1)
+            if bit32 then
+                head_chunks[i] = bit32.replace(head_chunks[i], 0, 31, 1)
+            else
+                head_chunks[i] = head_chunks[i] & ~(1 << 31)
+            end
             com_csize = rehex.Comment.new('Size (bit 31, skippable)')
             -- Not setting to u32le to make it look better
         else
@@ -93,7 +103,7 @@ local function analyse_user_data(doc)
     doc:set_comment(data_pos, fic - data_pos, com_chunkdata)
 end
 
-local function analyse_ref_folder(doc)
+local function analyze_ref_folder(doc)
     -- Analysis of each folder (seperate function for recursion)
 
     local folder_position = fic
@@ -111,13 +121,13 @@ local function analyse_ref_folder(doc)
     fic = fic + 4
 
     for i=1, folder_cnt do
-        analyse_ref_folder(doc)
+        analyze_ref_folder(doc)
     end
 
     doc:set_comment(folder_position, fic - folder_position, com_foldername)
 end
 
-local function analyse_ref_file(doc)
+local function analyze_ref_file(doc)
     -- Analysis of each reference file
 
     local file_position = fic
@@ -161,7 +171,7 @@ local function analyse_ref_file(doc)
     doc:set_comment(file_position, fic - file_position, com_folderindex)
 end
 
-local function analyse_reference_table(doc)
+local function analyze_reference_table(doc)
     -- 4 bytes
     local num_ex_nodes = utils.read_u32le(doc, fic)
     doc:set_comment(fic, 0, com_numexnodes)
@@ -185,14 +195,14 @@ local function analyse_reference_table(doc)
     fic = fic + 4
     -- Do folders
     for i=1, folder_cnt do
-        analyse_ref_folder(doc)
+        analyze_ref_folder(doc)
     end
     -- Group the entire folders section in a comment
     doc:set_comment(folder_position, fic - folder_position, com_folders)
     -- Do files
     local file_position = fic
     for i=1, num_ex_nodes do
-        analyse_ref_file(doc)
+        analyze_ref_file(doc)
     end
     -- Group the entire files section in a comment
     doc:set_comment(file_position, fic - file_position, com_files)
@@ -200,7 +210,7 @@ local function analyse_reference_table(doc)
     doc:set_comment(table_position, fic - table_position, com_referencetable)
 end
 
-local function analyse_body(doc)
+local function analyze_body(doc)
     -- Simple body analysis, just mark all node terminators
     while true do
         local status, facade = pcall(utils.read_u32le, doc, fic)
@@ -219,7 +229,7 @@ end
 
 -- Entry
 
-function gbx.analyse(doc)
+function gbx.analyze(doc)
     -- Analysis of the GBX file
 
     fic = 3                     -- binary file cursor (starting from 3, we know its a GBX file)
@@ -257,7 +267,7 @@ function gbx.analyse(doc)
     doc:set_comment(0, fic, com_header)
 
     if gbx_version >= 6 then
-        analyse_user_data(doc, fic)
+        analyze_user_data(doc, fic)
     end
     -- 4 bytes
     local num_nodes = utils.read_u32le(doc, fic)
@@ -265,15 +275,15 @@ function gbx.analyse(doc)
     doc:set_data_type(fic, 4, 'u32le')
     fic = fic + 4
 
-    analyse_reference_table(doc, fic)
+    analyze_reference_table(doc, fic)
     
     if gbx_compressed == 'C' then
         -- Compressed files not supported
         doc:set_comment(fic, 0, com_body)
-        error('Please decompress the file to analyse the body.')
+        error('Please decompress the file to analyze the body.')
     end
     local body_position = fic
-    analyse_body(doc)
+    analyze_body(doc)
     -- Group the entire body section in a comment
     doc:set_comment(body_position, fic - body_position, com_body)
 end
