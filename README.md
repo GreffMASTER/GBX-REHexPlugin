@@ -2,7 +2,7 @@
 A REHex plugin for the .Gbx (GameBox) file format.  
 
 # About
-This plugin will automaticall detect if a Gbx file was loaded and will offer to analyse it for you.  
+This plugin will automaticall detect if a Gbx file was loaded and will offer to analyze it for you.  
   
 It will make comments for:
 - Version
