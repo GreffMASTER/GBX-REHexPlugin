@@ -67,7 +67,7 @@ local function f_ToolAboutGbx(mainwindow)
     local message = [[
 
         GBX ReHex Plugin
-        Version 1.0.1
+        Version 1.0.2
         Made By GreffMASTER
         2024
     ]]

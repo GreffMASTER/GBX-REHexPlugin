@@ -137,7 +137,13 @@ local function analyze_ref_file(doc)
     doc:set_comment(fic, 0, com_flags)
     doc:set_data_type(fic, 4, 'u32le')
     fic = fic + 4
-    if bit32.band(flags, 4) == 0 then
+    local flag4 = 0
+    if bit32 then
+        flag4 = bit32.band(flags, 4)
+    else
+        flag4 = flags & 4
+    end
+    if flag4 == 0 then
         -- 4 bytes + n bytes
         local string_s = utils.read_u32le(doc, fic)
         fic = fic + 4
@@ -160,7 +166,7 @@ local function analyze_ref_file(doc)
         doc:set_data_type(fic, 4, 'u32le')
         fic = fic + 4
     end
-    if bit32.band(flags, 4) == 0 then
+    if flag4 == 0 then
         -- 4 bytes
         doc:set_comment(fic, 0, com_folderindex)
         doc:set_data_type(fic, 4, 'u32le')
