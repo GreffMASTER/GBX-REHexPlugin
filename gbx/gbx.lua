@@ -174,7 +174,7 @@ local function analyze_ref_file(doc)
     end
     -- Group the entire file in a comment
     local com_filename = rehex.Comment.new(filename)
-    doc:set_comment(file_position, fic - file_position, com_folderindex)
+    doc:set_comment(file_position, fic - file_position, com_filename)
 end
 
 local function analyze_reference_table(doc)
