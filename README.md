@@ -8,9 +8,16 @@ It will make comments for:
 - Version
 - Body compression, type, etc.
 - Class ID
-- User data (chunk entries and chunk data)
+- User data (chunk headers and chunk data)
 - Reference table (with nested folder comments)
 - Mark every node terminator (0xfacade01) in the body (if decompressed).
+
+## How to use
+Using the plugin is super simple.  
+If you open a GBX file, the plugin will automatically detect it and offer to analyse it for you.  
+Alternatively, you can use the `Analyse GBX` option in the `Tools` menu.  
+The plugin will go through the file and make comments in important sections.  
+(Warning: large files might freeze the program for a while and it would look like the editor is not responding, but it's actually taking a long time to find node terminators.)  
   
 ## How to install
 Copy the `gbx` folder to your REHex `plugins` folder.  
