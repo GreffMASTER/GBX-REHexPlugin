@@ -6,29 +6,30 @@ local utils = require('utils')
 
 -- Comments
 
-local com_empty = rehex.Comment.new(' ')
-local com_version = rehex.Comment.new('Version')
-local com_type = rehex.Comment.new('Type')
-local com_class = rehex.Comment.new('Class ID')
-local com_header = rehex.Comment.new('Header')
-local com_chunk = rehex.Comment.new('Chunk ID')
-local com_userdata = rehex.Comment.new('User data')
-local com_size = rehex.Comment.new('Size')
-local com_numheadchunks = rehex.Comment.new('Number of chunks')
-local com_chunkentries = rehex.Comment.new('Chunk entries')
-local com_chunkdata = rehex.Comment.new('Chunk data')
-local com_numnodes = rehex.Comment.new('Number of nodes')
-local com_numexnodes = rehex.Comment.new('Number of ex nodes')
-local com_referencetable = rehex.Comment.new('Reference table')
-local com_ancestor = rehex.Comment.new('Ancestor level')
-local com_folders = rehex.Comment.new('Folders')
-local com_flags = rehex.Comment.new('Flags')
-local com_nodeindex = rehex.Comment.new('Node index')
-local com_usefile = rehex.Comment.new('Use file')
-local com_folderindex = rehex.Comment.new('Folder index')
-local com_files = rehex.Comment.new('Files')
-local com_facade01 = rehex.Comment.new('FACADE01')
-local com_body = rehex.Comment.new('Body')
+local com_empty             = rehex.Comment.new(' ')
+local com_version           = rehex.Comment.new('Version')
+local com_type              = rehex.Comment.new('Type')
+local com_class             = rehex.Comment.new('Class ID')
+local com_header            = rehex.Comment.new('Header')
+local com_chunk             = rehex.Comment.new('Chunk ID')
+local com_userdata          = rehex.Comment.new('User data')
+local com_size              = rehex.Comment.new('Size')
+local com_numheadchunks     = rehex.Comment.new('Number of chunks')
+local com_chunkentries      = rehex.Comment.new('Chunk entries')
+local com_chunkheaders      = rehex.Comment.new('Chunk headers')
+local com_chunkdata         = rehex.Comment.new('Chunk data')
+local com_numnodes          = rehex.Comment.new('Number of nodes')
+local com_numexnodes        = rehex.Comment.new('Number of ex nodes')
+local com_referencetable    = rehex.Comment.new('Reference table')
+local com_ancestor          = rehex.Comment.new('Ancestor level')
+local com_folders           = rehex.Comment.new('Folders')
+local com_flags             = rehex.Comment.new('Flags')
+local com_nodeindex         = rehex.Comment.new('Node index')
+local com_usefile           = rehex.Comment.new('Use file')
+local com_folderindex       = rehex.Comment.new('Folder index')
+local com_files             = rehex.Comment.new('Files')
+local com_facade01          = rehex.Comment.new('FACADE01')
+local com_body              = rehex.Comment.new('Body')
 
 -- Local global variables
 
@@ -36,10 +37,14 @@ local fic = 0                   -- Binary file cursor
 local gbx_version = 0           -- GBX format version
 local gbx_data_type = 'B'       -- Data type ('B' - binary, 'T' - text)
 local folder_index_counter = 0  -- Folder used to give every folder an index that a file later references
+local facade = string.char(0x01)-- Search pattern for facade01 terminator
+            .. string.char(0xDE)
+            .. string.char(0xCA)
+            .. string.char(0xFA)
 
 -- Local functions
 
-local function analyze_user_data(doc)
+local function analyse_user_data(doc)
     -- Analysis of the user data portion of the file (only for versions >= 6)
 
     local user_data_pos = fic
@@ -59,6 +64,7 @@ local function analyze_user_data(doc)
     fic = fic + 4
 
     local head_chunks = {}
+    local chunk_headers_offset = fic
 
     for i=1, num_head_chunks do
         doc:set_comment(fic, 8, rehex.Comment.new(tostring(i)))
@@ -67,22 +73,12 @@ local function analyze_user_data(doc)
         fic = fic + 4
         -- 4 bytes
         head_chunks[i] = utils.read_u32le(doc, fic)
-        local skip = false
-        local com_csize = com_size
         -- Get bit 31 to check if chunk is skippable
-        if bit32 then
-            if bit32.extract(head_chunks[i], 31, 1) == 1 then skip = true end
-        else
-            rehex.print_info( tostring((head_chunks[i]) & (1<<(31))) .. '\n' )
-            skip = (head_chunks[i]) & (1<<(31)) == (1<<(31))
-        end
+        local skip = (head_chunks[i]) & (1<<(31)) == (1<<(31))
+        local com_csize = com_size
         if skip then
             -- Is skippable, clearing bit 31 to get actual size
-            if bit32 then
-                head_chunks[i] = bit32.replace(head_chunks[i], 0, 31, 1)
-            else
-                head_chunks[i] = head_chunks[i] & ~(1 << 31)
-            end
+            head_chunks[i] = head_chunks[i] & ~(1 << 31)
             com_csize = rehex.Comment.new('Size (bit 31, skippable)')
             -- Not setting to u32le to make it look better
         else
@@ -93,6 +89,8 @@ local function analyze_user_data(doc)
         
         fic = fic + 4
     end
+    -- Group em
+    doc:set_comment(chunk_headers_offset, fic - chunk_headers_offset, com_chunkheaders)
     local data_pos = fic
     for i=1, num_head_chunks do
         local chunk_size = head_chunks[i]
@@ -103,7 +101,7 @@ local function analyze_user_data(doc)
     doc:set_comment(data_pos, fic - data_pos, com_chunkdata)
 end
 
-local function analyze_ref_folder(doc)
+local function analyse_ref_folder(doc)
     -- Analysis of each folder (seperate function for recursion)
 
     local folder_position = fic
@@ -121,13 +119,13 @@ local function analyze_ref_folder(doc)
     fic = fic + 4
 
     for i=1, folder_cnt do
-        analyze_ref_folder(doc)
+        analyse_ref_folder(doc)
     end
 
     doc:set_comment(folder_position, fic - folder_position, com_foldername)
 end
 
-local function analyze_ref_file(doc)
+local function analyse_ref_file(doc)
     -- Analysis of each reference file
 
     local file_position = fic
@@ -137,12 +135,7 @@ local function analyze_ref_file(doc)
     doc:set_comment(fic, 0, com_flags)
     doc:set_data_type(fic, 4, 'u32le')
     fic = fic + 4
-    local flag4 = 0
-    if bit32 then
-        flag4 = bit32.band(flags, 4)
-    else
-        flag4 = flags & 4
-    end
+    local flag4 = flags & 4
     if flag4 == 0 then
         -- 4 bytes + n bytes
         local string_s = utils.read_u32le(doc, fic)
@@ -177,7 +170,7 @@ local function analyze_ref_file(doc)
     doc:set_comment(file_position, fic - file_position, com_filename)
 end
 
-local function analyze_reference_table(doc)
+local function analyse_reference_table(doc)
     -- 4 bytes
     local num_ex_nodes = utils.read_u32le(doc, fic)
     doc:set_comment(fic, 0, com_numexnodes)
@@ -201,14 +194,14 @@ local function analyze_reference_table(doc)
     fic = fic + 4
     -- Do folders
     for i=1, folder_cnt do
-        analyze_ref_folder(doc)
+        analyse_ref_folder(doc)
     end
     -- Group the entire folders section in a comment
     doc:set_comment(folder_position, fic - folder_position, com_folders)
     -- Do files
     local file_position = fic
     for i=1, num_ex_nodes do
-        analyze_ref_file(doc)
+        analyse_ref_file(doc)
     end
     -- Group the entire files section in a comment
     doc:set_comment(file_position, fic - file_position, com_files)
@@ -216,26 +209,24 @@ local function analyze_reference_table(doc)
     doc:set_comment(table_position, fic - table_position, com_referencetable)
 end
 
-local function analyze_body(doc)
+local function analyse_body(doc)
+    -- Get body offset position
+    local boffset = fic
+    local size = doc:buffer_length() - fic
     -- Simple body analysis, just mark all node terminators
+    local data = doc:read_data(boffset, size)
+    local i = 1
     while true do
-        local status, facade = pcall(utils.read_u32le, doc, fic)
-        if not status then
-            -- Failed to read, means eof, returning...
-            break
-        end
-        if facade == 0xfacade01 then
-            doc:set_comment(fic, 0, com_facade01)
-            fic = fic + 4
-        else
-            fic = fic + 1
-        end
+        local nxt_s, nxt_e = string.find(data,facade,i)
+        if not nxt_s or not nxt_e then break end
+        doc:set_comment(fic + nxt_s - 1, 0, com_facade01)
+        i = nxt_e
     end
 end
 
 -- Entry
 
-function gbx.analyze(doc)
+function gbx.analyse(doc)
     -- Analysis of the GBX file
 
     fic = 3                     -- binary file cursor (starting from 3, we know its a GBX file)
@@ -273,7 +264,7 @@ function gbx.analyze(doc)
     doc:set_comment(0, fic, com_header)
 
     if gbx_version >= 6 then
-        analyze_user_data(doc, fic)
+        analyse_user_data(doc, fic)
     end
     -- 4 bytes
     local num_nodes = utils.read_u32le(doc, fic)
@@ -281,17 +272,17 @@ function gbx.analyze(doc)
     doc:set_data_type(fic, 4, 'u32le')
     fic = fic + 4
 
-    analyze_reference_table(doc, fic)
+    analyse_reference_table(doc, fic)
     
     if gbx_compressed == 'C' then
         -- Compressed files not supported
         doc:set_comment(fic, 0, com_body)
-        error('Please decompress the file to analyze the body.')
+        error('Please decompress the file to analyse the body.')
     end
     local body_position = fic
-    analyze_body(doc)
+    analyse_body(doc)
     -- Group the entire body section in a comment
-    doc:set_comment(body_position, fic - body_position, com_body)
+    doc:set_comment(body_position, doc:buffer_length() - fic, com_body)
 end
 
 return gbx
