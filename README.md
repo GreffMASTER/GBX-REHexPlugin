@@ -19,6 +19,8 @@ Alternatively, you can use the `Analyse GBX` option in the `Tools` menu.
 The plugin will go through the file and make comments in important sections.  
 (Warning: large files might freeze the program for a while and it would look like the editor is not responding, but it's actually taking a long time to find node terminators.)  
   
+You can change some settings in the `gbx/plugin.lua` file.  
+  
 ## How to install
 Copy the `gbx` folder to your REHex `plugins` folder.  
 You can find it in:
